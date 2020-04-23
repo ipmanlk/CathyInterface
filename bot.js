@@ -1,4 +1,3 @@
-const timeout = require("connect-timeout");
 const express = require("express");
 const discord = require("discord.js");
 const { Queue } = require("./lib/Queue");
@@ -31,8 +30,6 @@ app.use(function (req, res, next) {
     next();
 });
 
-app.use(timeout("15s"));
-
 // global var for cathy bot channel
 let cathyChannel;
 
@@ -59,7 +56,7 @@ client.on("message", msg => {
             try {
                 const resp = msg.content;
                 let currentResponse = reqQueue.dequeue();
-                currentResponse.json({ response: resp });
+                currentResponse.res.json({ response: resp });
             } catch (e) {
             }
         }
@@ -68,8 +65,16 @@ client.on("message", msg => {
 
 // endpoint for interactign with the bot
 app.get("/interact/:msg", (req, res) => {
-    reqQueue.enqueue(res);
-    cathyChannel.send(req.params.msg);
+    cathyChannel.send(req.params.msg).then(msg => {
+        reqQueue.enqueue({id: msg.id, res: res});
+        setTimeout(() => {
+           const rep = reqQueue.remove(msg.id);
+           if (!rep) return;
+           rep.res.status(404).json({"error": "Request timeout!."});
+        }, 15000);
+    }).catch(e => {
+        console.log(e);
+    });
 });
 
 // discord app login
